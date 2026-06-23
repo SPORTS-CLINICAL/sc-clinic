@@ -445,7 +445,7 @@ function newPatient(){const p=blankPatient();S.patients[p.id]=p;queueSave();open
 function patientName(p){const i=p.intake;return((i.firstName||'')+' '+(i.surname||'')).trim()||'New patient'}
 let SHOWARCH=false;
 function renderPatients(){const q=($('search').value||'').toLowerCase();
-  const all=Object.values(S.patients).sort((a,b)=>patientName(a).localeCompare(patientName(b)));
+  const sortKey=p=>((p.intake.surname||'')+' '+(p.intake.firstName||'')).trim().toLowerCase()||'zzz';const all=Object.values(S.patients).sort((a,b)=>sortKey(a).localeCompare(sortKey(b),'en',{sensitivity:'base'}));
   const match=p=>{const n=patientName(p).toLowerCase(),d=(p.intake.dob||'')+' '+fmtD(p.intake.dob||'');
     return!q||n.includes(q)||d.includes(q)};
   const f=all.filter(p=>!p.archived&&match(p));
@@ -1146,10 +1146,10 @@ addEventListener('DOMContentLoaded',async function(){hydrateAssets();fitUrls();c
 z-index:40;font-family:'CG',sans-serif;font-size:11px;color:#6B7077;background:rgba(244,244,242,.9);
 border:1px solid #E6E6E2;border-radius:8px;padding:3px 8px;pointer-events:none;letter-spacing:.3px}
 </style>
-<div id="scVerMark">v1.2</div>
+<div id="scVerMark">v1.3</div>
 <script>
 (function(){
-  var APP_VERSION='1.2';
+  var APP_VERSION='1.3';
   function rel(last){var d=Math.floor((Date.now()-last)/86400000);
     return d<=0?'backed up today':d===1?'backed up yesterday':('backed up '+d+' days ago');}
   function scMark(){var e=document.getElementById('scVerMark');if(!e)return;
