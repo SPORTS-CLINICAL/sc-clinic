@@ -186,7 +186,7 @@ button+.hint{margin-top:12px}
   <div class="homebar">
     <button class="btn" style="background:var(--gold);color:var(--navy)" onclick="go('dash')">Dashboard</button>
     <button class="btn" style="background:#fff;border:2px solid var(--gold);color:var(--navy)" onclick="$('intakeFile').click()">Import intake form</button>
-    <input type="file" id="intakeFile" accept=".scintake,.json,application/octet-stream,application/json" style="display:none" onchange="importIntake(this.files[0]);this.value=''">
+    <input type="file" id="intakeFile" style="display:none" onchange="importIntake(this.files[0]);this.value=''">
     <button class="btn" style="background:var(--navy);color:#fff" onclick="go('docs')">Documents</button>
     <button class="btn" style="background:#fff;border:2px solid var(--navy);color:var(--navy)" onclick="go('sync')">Sync &amp; backup</button>
     <button class="btn" style="background:var(--amber);color:#fff" onclick="go('settings')">Settings</button>
@@ -258,7 +258,7 @@ button+.hint{margin-top:12px}
   <div class="card">
     <h3 style="margin:0">Import sync bundle</h3>
     <p style="font-size:14px">Open the latest bundle from the other device. Records merge safely: treatment entries always combine; if the same detail was edited on both devices, the newer edit is kept.</p>
-    <input type="file" id="syncFile" accept=".scsync,application/json">
+    <input type="file" id="syncFile">
     <button class="btn" style="margin-top:12px" onclick="importBundle()">Import &amp; merge</button>
   </div>
   <div class="note" style="font-size:13.5px">Routine: finish on one device → Export → save to iCloud Drive. On the other device → Import the newest bundle before working.</div>
@@ -1146,10 +1146,10 @@ addEventListener('DOMContentLoaded',async function(){hydrateAssets();fitUrls();c
 z-index:40;font-family:'CG',sans-serif;font-size:11px;color:#6B7077;background:rgba(244,244,242,.9);
 border:1px solid #E6E6E2;border-radius:8px;padding:3px 8px;pointer-events:none;letter-spacing:.3px}
 </style>
-<div id="scVerMark">v1.1</div>
+<div id="scVerMark">v1.2</div>
 <script>
 (function(){
-  var APP_VERSION='1.1';
+  var APP_VERSION='1.2';
   function rel(last){var d=Math.floor((Date.now()-last)/86400000);
     return d<=0?'backed up today':d===1?'backed up yesterday':('backed up '+d+' days ago');}
   function scMark(){var e=document.getElementById('scVerMark');if(!e)return;
