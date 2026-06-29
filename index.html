@@ -733,14 +733,14 @@ function renderSnips(){const L=$('snipList');if(!L)return;const arr=S.snippets||
   :'<p class="hint" style="margin:10px 0 0">No snippets yet; add your first below.</p>'}
 function addSnip(){const n=$('snip-name').value.trim(),t=$('snip-text').value.trim();
   if(!n||!t)return toast('Give the snippet a name and its text');
-  (S.snippets=S.snippets||[]).push({name:n,text:t});
+  (S.snippets=S.snippets||[]).push({name:n,text:t});S.snippetsAt=Date.now();
   $('snip-name').value='';$('snip-text').value='';
   queueSave();renderSnips();toast('Snippet added')}
-function delSnip(ix){if(!confirm('Remove this snippet?'))return;S.snippets.splice(ix,1);queueSave();renderSnips()}
+function delSnip(ix){if(!confirm('Remove this snippet?'))return;S.snippets.splice(ix,1);S.snippetsAt=Date.now();queueSave();renderSnips()}
 function insertSnip(ix){const sn=(S.snippets||[])[ix];if(!sn)return;const ta=$('tx-text');
   ta.value=ta.value.trim()?ta.value.replace(/\s+$/,'')+'\n'+sn.text:sn.text;ta.focus()}
 function invNo(c){c=c||{};const n=String(c.next||1).padStart(c.pad||5,'0');return (c.prefix||'SC')+'-'+n}
-function saveInvCfg(){const c=S.invoiceCfg=S.invoiceCfg||{};
+function saveInvCfg(){const c=S.invoiceCfg=S.invoiceCfg||{};S.invoiceCfgAt=Date.now();
   c.prefix=$('iv-prefix').value.trim()||'SC';c.next=parseInt($('iv-next').value,10)||1;c.pad=c.pad||5;
   c.sortName=$('iv-name').value.trim();c.sortPostnom=$('iv-postnom').value.trim();
   c.sortTitle=$('iv-title').value.trim();c.sortPhone=$('iv-phone').value.trim();
@@ -828,8 +828,8 @@ const TPLD={
 function tpl(k){return(S.templates&&S.templates[k])||TPLD[k]}
 function fillTpl(t,d){return t.replace(/\{(\w+)\}/g,(m,k)=>d[k]!=null?d[k]:m)}
 function renderTpls(){['recall','lapsed','reminder','subject'].forEach(k=>{const el=$('tpl-'+k);if(el)el.value=tpl(k)})}
-function saveTpls(){S.templates={};['recall','lapsed','reminder','subject'].forEach(k=>{const v=$('tpl-'+k).value.trim();if(v&&v!==TPLD[k])S.templates[k]=v});queueSave();toast('Message wording saved')}
-function resetTpls(){S.templates={};queueSave();renderTpls();toast('Wording reset to defaults')}
+function saveTpls(){S.templates={};['recall','lapsed','reminder','subject'].forEach(k=>{const v=$('tpl-'+k).value.trim();if(v&&v!==TPLD[k])S.templates[k]=v});S.templatesAt=Date.now();queueSave();toast('Message wording saved')}
+function resetTpls(){S.templates={};S.templatesAt=Date.now();queueSave();renderTpls();toast('Wording reset to defaults')}
 function fmtT(t){if(!t)return'';const[h,m]=t.split(':').map(Number);const ap=h<12?'am':'pm';return((h%12)||12)+'.'+String(m).padStart(2,'0')+ap}
 function remindMsg(e,id){e.stopPropagation();const p=S.patients[id];if(!p)return;
   const i=p.intake,fn=(i.firstName||'').trim()||'there';const r=recallOf(p);
@@ -1104,6 +1104,9 @@ function mergeStores(local,inc){let newP=0,updP=0,tx=0,docs=0;
       unionBy(lp.clinician.charts[kind],(ip.clinician&&ip.clinician.charts&&ip.clinician.charts[kind])||[],'id');
     lp.updatedAt=Math.max(lp.updatedAt||0,ip.updatedAt||0)}
   for(const[id,d]of Object.entries(inc.documents||{}))if(!local.documents[id]){local.documents[id]=d;docs++}
+  if((inc.snippetsAt||0)>(local.snippetsAt||0)){local.snippets=inc.snippets||local.snippets;local.snippetsAt=inc.snippetsAt}
+  if((inc.templatesAt||0)>(local.templatesAt||0)){local.templates=inc.templates||local.templates;local.templatesAt=inc.templatesAt}
+  if(inc.invoiceCfg){const ln=(local.invoiceCfg&&local.invoiceCfg.next)||1,rn=inc.invoiceCfg.next||1;if((inc.invoiceCfgAt||0)>(local.invoiceCfgAt||0)){local.invoiceCfg=inc.invoiceCfg;local.invoiceCfgAt=inc.invoiceCfgAt}local.invoiceCfg.next=Math.max(ln,rn)}
   return{newP,updP,tx,docs}}
 
 /* ---------- settings ---------- */
@@ -1148,10 +1151,10 @@ addEventListener('DOMContentLoaded',async function(){hydrateAssets();fitUrls();c
 z-index:40;font-family:'CG',sans-serif;font-size:11px;color:#6B7077;background:rgba(244,244,242,.9);
 border:1px solid #E6E6E2;border-radius:8px;padding:3px 8px;pointer-events:none;letter-spacing:.3px}
 </style>
-<div id="scVerMark">v1.7</div>
+<div id="scVerMark">v1.8</div>
 <script>
 (function(){
-  var APP_VERSION='1.7';
+  var APP_VERSION='1.8';
   function rel(last){var d=Math.floor((Date.now()-last)/86400000);
     return d<=0?'backed up today':d===1?'backed up yesterday':('backed up '+d+' days ago');}
   function scMark(){var e=document.getElementById('scVerMark');if(!e)return;
