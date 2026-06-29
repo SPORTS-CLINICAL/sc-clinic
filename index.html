@@ -259,7 +259,7 @@ button+.hint{margin-top:12px}
     <h3 style="margin:0">Import sync bundle</h3>
     <p style="font-size:14px">Open the latest bundle from the other device. Records merge safely: treatment entries always combine; if the same detail was edited on both devices, the newer edit is kept.</p>
     <input type="file" id="syncFile">
-    <div style="position:relative;margin-top:10px"><input type="password" id="syncPass" placeholder="Bundle password (same as this device)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" style="width:100%;padding:11px 52px 11px 12px;border:1px solid #C7CDD6;border-radius:10px;font-size:16px;background:#F4F4F2"><button type="button" onclick="var f=$('syncPass');var s=f.type==='password';f.type=s?'text':'password';this.textContent=s?'hide':'show'" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:0;color:#6B7077;font-size:13px;font-family:inherit;cursor:pointer">show</button></div> <button class="btn" style="margin-top:12px" onclick="importBundle()">Import &amp; merge</button>
+    <div style="position:relative;margin-top:10px"><input type="password" id="syncPass" placeholder="Bundle password (same as this device)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" style="width:100%;padding:11px 52px 11px 12px;border:1px solid #C7CDD6;border-radius:10px;font-size:16px;background:#F4F4F2"><button type="button" onclick="var f=$('syncPass');var s=f.type==='password';f.type=s?'text':'password';this.textContent=s?'hide':'show'" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:0;color:#6B7077;font-size:13px;font-family:inherit;cursor:pointer">show</button></div> <button class="btn" style="margin-top:12px" onclick="importBundle()">Import &amp; merge</button><div id="syncResult" style="margin-top:10px;font-size:13.5px;color:#0D1B2E;font-weight:500"></div>
   </div>
   <div class="note" style="font-size:13.5px">Routine: finish on one device → Export → save to iCloud Drive. On the other device → Import the newest bundle before working.</div>
 </div>
@@ -474,9 +474,9 @@ function renderPatientHead(){const p=P();$('pName').textContent=patientName(p);
   if(p.archived){b.innerHTML=`<b class="kab">Archived</b> ${new Date(p.archived.ts).toLocaleDateString('en-GB')} by ${esc(p.archived.by||'')}. The record is retained in full and excluded from the patient list, call backs and dashboard. Reopen at any time.`;b.style.display='block'}
   else b.style.display='none'}
 function toggleArchive(){const p=P();
-  if(p.archived){delete p.archived;touch();renderPatientHead();toast('Patient reopened')}
+  if(p.archived){delete p.archived;p.archivedAt=Date.now();touch();renderPatientHead();toast('Patient reopened')}
   else if(confirm('Archive '+patientName(p)+'? They will be hidden from the patient list, call backs and dashboard. The record is kept in full and can be reopened at any time.')){
-    p.archived={ts:Date.now(),by:S.practitioner.name};touch();renderPatientHead();toast('Patient archived')}}
+    p.archived={ts:Date.now(),by:S.practitioner.name};p.archivedAt=Date.now();touch();renderPatientHead();toast('Patient archived')}}
 function ptab(t){document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
   ['intake','clin','tx','send'].forEach(x=>$('tab-'+x).style.display=x===t?'block':'none');
   if(t==='intake')renderIntake();if(t==='clin')renderClin();if(t==='tx')renderTx();if(t==='send')renderSend()}
@@ -1085,8 +1085,9 @@ async function importBundle(){const f=$('syncFile').files[0];if(!f)return toast(
     const incoming=await decJSON(key,{iv:raw.iv,ct:raw.ct});
     const r=mergeStores(S,incoming);await persist();S.meta.lastSync=Date.now();queueSave();
     if(pf)pf.value='';go('sync');renderPatients();
+    var sr=$('syncResult');if(sr)sr.textContent='Imported OK — '+r.newP+' new, '+r.updP+' updated, '+r.tx+' treatment entries. Archive status synced.';
     toast(`Merged: ${r.newP} new patient(s), ${r.updP} updated, ${r.tx} treatment entries, ${r.docs} documents`)}
-  catch(e){toast('Could not decrypt or read that bundle')}}
+  catch(e){var sr=$('syncResult');if(sr)sr.textContent='Could not read that bundle, or the password did not match.';toast('Could not decrypt or read that bundle')}}
 function mergeStores(local,inc){let newP=0,updP=0,tx=0,docs=0;
   const unionBy=(a,b,k)=>{const seen=new Set(a.map(x=>x[k]));let n=0;
     b.forEach(x=>{if(!seen.has(x[k])){a.push(x);n++}});
@@ -1094,8 +1095,9 @@ function mergeStores(local,inc){let newP=0,updP=0,tx=0,docs=0;
   for(const[id,ip]of Object.entries(inc.patients||{})){
     const lp=local.patients[id];
     if(!lp){local.patients[id]=ip;newP++;continue}
-    if((ip.updatedAt||0)>(lp.updatedAt||0)){lp.intake=ip.intake;lp.archived=ip.archived;
+    if((ip.updatedAt||0)>(lp.updatedAt||0)){lp.intake=ip.intake;
       const keep=lp.clinician.charts;lp.clinician={...ip.clinician,charts:keep};updP++}
+    {const aIn=(ip.archivedAt||(ip.archived&&ip.archived.ts)||0),aLo=(lp.archivedAt||(lp.archived&&lp.archived.ts)||0);if(aIn>aLo){if(ip.archived){lp.archived=ip.archived}else{delete lp.archived}lp.archivedAt=aIn}}
     tx+=unionBy(lp.treatments,ip.treatments||[],'id');
     unionBy(lp.sends,ip.sends||[],'id');
     for(const kind of['symptom','posture'])
@@ -1146,10 +1148,10 @@ addEventListener('DOMContentLoaded',async function(){hydrateAssets();fitUrls();c
 z-index:40;font-family:'CG',sans-serif;font-size:11px;color:#6B7077;background:rgba(244,244,242,.9);
 border:1px solid #E6E6E2;border-radius:8px;padding:3px 8px;pointer-events:none;letter-spacing:.3px}
 </style>
-<div id="scVerMark">v1.6</div>
+<div id="scVerMark">v1.7</div>
 <script>
 (function(){
-  var APP_VERSION='1.6';
+  var APP_VERSION='1.7';
   function rel(last){var d=Math.floor((Date.now()-last)/86400000);
     return d<=0?'backed up today':d===1?'backed up yesterday':('backed up '+d+' days ago');}
   function scMark(){var e=document.getElementById('scVerMark');if(!e)return;
