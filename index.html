@@ -1094,7 +1094,7 @@ function mergeStores(local,inc){let newP=0,updP=0,tx=0,docs=0;
   for(const[id,ip]of Object.entries(inc.patients||{})){
     const lp=local.patients[id];
     if(!lp){local.patients[id]=ip;newP++;continue}
-    if((ip.updatedAt||0)>(lp.updatedAt||0)){lp.intake=ip.intake;
+    if((ip.updatedAt||0)>(lp.updatedAt||0)){lp.intake=ip.intake;lp.archived=ip.archived;
       const keep=lp.clinician.charts;lp.clinician={...ip.clinician,charts:keep};updP++}
     tx+=unionBy(lp.treatments,ip.treatments||[],'id');
     unionBy(lp.sends,ip.sends||[],'id');
@@ -1146,10 +1146,10 @@ addEventListener('DOMContentLoaded',async function(){hydrateAssets();fitUrls();c
 z-index:40;font-family:'CG',sans-serif;font-size:11px;color:#6B7077;background:rgba(244,244,242,.9);
 border:1px solid #E6E6E2;border-radius:8px;padding:3px 8px;pointer-events:none;letter-spacing:.3px}
 </style>
-<div id="scVerMark">v1.3</div>
+<div id="scVerMark">v1.4</div>
 <script>
 (function(){
-  var APP_VERSION='1.3';
+  var APP_VERSION='1.4';
   function rel(last){var d=Math.floor((Date.now()-last)/86400000);
     return d<=0?'backed up today':d===1?'backed up yesterday':('backed up '+d+' days ago');}
   function scMark(){var e=document.getElementById('scVerMark');if(!e)return;
