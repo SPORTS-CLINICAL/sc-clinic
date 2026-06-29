@@ -259,7 +259,7 @@ button+.hint{margin-top:12px}
     <h3 style="margin:0">Import sync bundle</h3>
     <p style="font-size:14px">Open the latest bundle from the other device. Records merge safely: treatment entries always combine; if the same detail was edited on both devices, the newer edit is kept.</p>
     <input type="file" id="syncFile">
-    <button class="btn" style="margin-top:12px" onclick="importBundle()">Import &amp; merge</button>
+    <div style="position:relative;margin-top:10px"><input type="password" id="syncPass" placeholder="Bundle password (same as this device)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" style="width:100%;padding:11px 52px 11px 12px;border:1px solid #C7CDD6;border-radius:10px;font-size:16px;background:#F4F4F2"><button type="button" onclick="var f=$('syncPass');var s=f.type==='password';f.type=s?'text':'password';this.textContent=s?'hide':'show'" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:0;color:#6B7077;font-size:13px;font-family:inherit;cursor:pointer">show</button></div> <button class="btn" style="margin-top:12px" onclick="importBundle()">Import &amp; merge</button>
   </div>
   <div class="note" style="font-size:13.5px">Routine: finish on one device → Export → save to iCloud Drive. On the other device → Import the newest bundle before working.</div>
 </div>
@@ -1080,11 +1080,11 @@ async function exportBundle(){const blob=await encJSON(KEY,S);const meta=await D
   const a=document.createElement('a');var _u=URL.createObjectURL(f);a.href=_u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(_u)},4000);S.meta.lastSync=Date.now();queueSave();try{localStorage.setItem('sc_lastbk',String(S.meta.lastSync))}catch(e){}if(window.scMark)window.scMark();var _n=new Date(),_hh=('0'+_n.getHours()).slice(-2),_mm=('0'+_n.getMinutes()).slice(-2);go('sync');toast('Backup saved \u00b7 '+_n.getDate()+' '+_n.toLocaleString('en-GB',{month:'short'})+' '+_hh+':'+_mm)}
 async function importBundle(){const f=$('syncFile').files[0];if(!f)return toast('Choose a bundle file first');
   try{const raw=JSON.parse(await f.text());
-    const pass=prompt('Password for this bundle (usually the same as this device):');if(pass===null)return;
+    const pf=$('syncPass');const pass=pf?pf.value:'';if(!pass)return toast('Enter the bundle password above, then Import & merge');
     const key=await deriveKey(pass,ub64(raw.salt));
     const incoming=await decJSON(key,{iv:raw.iv,ct:raw.ct});
     const r=mergeStores(S,incoming);await persist();S.meta.lastSync=Date.now();queueSave();
-    go('sync');renderPatients();
+    if(pf)pf.value='';go('sync');renderPatients();
     toast(`Merged: ${r.newP} new patient(s), ${r.updP} updated, ${r.tx} treatment entries, ${r.docs} documents`)}
   catch(e){toast('Could not decrypt or read that bundle')}}
 function mergeStores(local,inc){let newP=0,updP=0,tx=0,docs=0;
@@ -1146,10 +1146,10 @@ addEventListener('DOMContentLoaded',async function(){hydrateAssets();fitUrls();c
 z-index:40;font-family:'CG',sans-serif;font-size:11px;color:#6B7077;background:rgba(244,244,242,.9);
 border:1px solid #E6E6E2;border-radius:8px;padding:3px 8px;pointer-events:none;letter-spacing:.3px}
 </style>
-<div id="scVerMark">v1.4</div>
+<div id="scVerMark">v1.6</div>
 <script>
 (function(){
-  var APP_VERSION='1.4';
+  var APP_VERSION='1.6';
   function rel(last){var d=Math.floor((Date.now()-last)/86400000);
     return d<=0?'backed up today':d===1?'backed up yesterday':('backed up '+d+' days ago');}
   function scMark(){var e=document.getElementById('scVerMark');if(!e)return;
