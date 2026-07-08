@@ -223,11 +223,13 @@ button+.hint{margin-top:12px}
     <button data-tab="clin" onclick="ptab('clin')">Clinician</button>
     <button data-tab="tx" onclick="ptab('tx')">Treatments</button>
     <button data-tab="send" onclick="ptab('send')">Send</button>
+    <button data-tab="consent" onclick="ptab('consent')">Consents</button>
   </div>
   <div id="tab-intake"></div>
   <div id="tab-clin" style="display:none"></div>
   <div id="tab-tx" style="display:none"></div>
   <div id="tab-send" style="display:none"></div>
+  <div id="tab-consent" style="display:none"></div>
 </div>
 
 <!-- ============ DOCUMENTS ============ -->
@@ -440,6 +442,7 @@ setInterval(()=>{if(KEY&&Date.now()-lastActive>10*60*1000)lockNow()},30000);
 function blankPatient(){return{id:uid(),createdAt:Date.now(),updatedAt:Date.now(),
   intake:{reminders:[],consent:{},big5:{},concern:{},medical:{}},
   clinician:{redflags:{},charts:{symptom:[],posture:[]}},
+  consents:{agreement:{},acupuncture:null},
   treatments:[],sends:[],invoices:[]}}
 function newPatient(){const p=blankPatient();S.patients[p.id]=p;queueSave();openPatient(p.id);ptab('intake')}
 function patientName(p){const i=p.intake;return((i.firstName||'')+' '+(i.surname||'')).trim()||'New patient'}
@@ -478,8 +481,8 @@ function toggleArchive(){const p=P();
   else if(confirm('Archive '+patientName(p)+'? They will be hidden from the patient list, call backs and dashboard. The record is kept in full and can be reopened at any time.')){
     p.archived={ts:Date.now(),by:S.practitioner.name};p.archivedAt=Date.now();touch();renderPatientHead();toast('Patient archived')}}
 function ptab(t){document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
-  ['intake','clin','tx','send'].forEach(x=>$('tab-'+x).style.display=x===t?'block':'none');
-  if(t==='intake')renderIntake();if(t==='clin')renderClin();if(t==='tx')renderTx();if(t==='send')renderSend()}
+  ['intake','clin','tx','send','consent'].forEach(x=>$('tab-'+x).style.display=x===t?'block':'none');
+  if(t==='intake')renderIntake();if(t==='clin')renderClin();if(t==='tx')renderTx();if(t==='send')renderSend();if(t==='consent')renderConsent()}
 function bindAll(root,obj,prefix){root.querySelectorAll('[data-k]').forEach(el=>{
   const path=el.dataset.k.split('.');let o=obj;for(let i=0;i<path.length-1;i++){o[path[i]]=o[path[i]]||{};o=o[path[i]]}
   const k=path[path.length-1];
@@ -718,7 +721,7 @@ async function importIntake(f){if(!f)return;
     if(obj.kind!=='scintake'||!obj.intake)throw 0;
     const p=blankPatient();
     p.intake=Object.assign(p.intake,obj.intake);
-    p.intake.consent=obj.intake.consent||{};p.intake.big5=obj.intake.big5||{};
+    p.intake.consent=obj.intake.consent||{};p.intake.big5=obj.intake.big5||{};p.consents=obj.consents||{agreement:{},acupuncture:null};
     p.intake.concern=obj.intake.concern||{};p.intake.medical=obj.intake.medical||{};
     p.intake.reminders=obj.intake.reminders||[];
     S.patients[p.id]=p;p.updatedAt=Date.now();queueSave();
@@ -748,6 +751,143 @@ function saveInvCfg(){const c=S.invoiceCfg=S.invoiceCfg||{};S.invoiceCfgAt=Date.
   c.reText=$('iv-retext').value.trim()||'Remedial Massage, Clinical Soft Tissue & Neurological Therapy';
   c.totalLabel=$('iv-totallabel').value.trim()||'TOTAL Paid';
   queueSave();toast('Invoice details saved')}
+/* ---------- consents: patient agreement + optional acupuncture, signed in-system (v1.9) ---------- */
+(function(){var s=document.createElement('style');s.textContent=
+ ".acq{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:7px 0;border-bottom:1px solid #E4E4E0}"+
+ ".acq .yn{white-space:nowrap}.acq .yn label{margin-left:14px;cursor:pointer}"+
+ ".acul{margin:2px 0 8px 20px}.acul li{margin:3px 0}"+
+ ".acqs{margin-top:8px}.acsub{font-family:'Kabel2',sans-serif;color:#0D1B2E;display:block;margin:14px 0 4px}";
+ document.head.appendChild(s)})();
+
+const AGREE=[
+ ['Assessment & treatment','I consent to assessment and treatment by SPORTS CLINICAL. The nature of any treatment has been, or will be, explained to me and I have had the opportunity to ask questions.'],
+ ['Cancellation policy','I have read and agree to the cancellation policy.'],
+ ['Data & privacy','I understand my personal and health information will be held securely and confidentially, and processed in line with the SPORTS CLINICAL Privacy Policy, the UK GDPR and the Data Protection Act 2018.']];
+const ACU_BEN=['Reduction of pain','Alleviation of muscle spasm and tension','Facilitation of the healing process','Induction of local and general relaxation','Promotion of general well-being','Improvement of sleep pattern'];
+const ACU_ADV=['Bleeding and Bruising (3%)','Mild aggravation of symptoms (3%, of which 70-85% show subsequent improvement)','Mild Pain at the needle site (1%)','Drowsiness (1%)','Dizziness (0.6%)','Pain not at needle site (0.5%)','Nausea (0.3%)','Feeling faint (0.3%)','Stuck or bent needle (0.1%)','Headache (0.1%)','Allergy or infection (up to 0.2%)','Pneumothorax (0.0002%, less than 2 per 1 million)'];
+const ACU_Q=['Do you suffer from diabetes?','Have you ever experienced an epileptic seizure?','Have you ever fainted?','Do you have any heart problems?','Do you have a pacemaker or any other electrical implant?','Do you have any problems with your circulation such as Deep Vein Thrombosis, Pulmonary Embolism or a bleeding or clotting disorder?','Are you receiving anticoagulation therapy?','Do you have, or have you ever suffered from any form of cancer?','Are you aware of any blood borne viruses such as HIV, AIDS, or Hepatitis?','Do you have any allergies? (specifically to metal or alcohol wipes)','Are you pregnant or trying to conceive?','Do you have a phobia to needles?','Have you ever experienced any adverse effect to previous needling procedures such as acupuncture or injections?','Have you eaten, or will you eat, within 2 hours prior to your acupuncture treatment?'];
+const ACU_STMT='I confirm I have read, understood and have had the opportunity to ask questions related to the information on this form. Specifically I understand what the treatment is likely to involve, the intended benefits and possible adverse effects, therefore I give consent to having acupuncture treatment. I understand I can withdraw from the treatment at any time. I agree not to disturb the needles during the treatment period and will ask for assistance if I have any concern.';
+
+function sigPad(host,existing){
+  host.innerHTML=`<div class="tools"><button class="btn sm ghost" data-act="clear">Clear signature</button><span class="hint" style="margin:0">Sign with finger, stylus or mouse</span></div><div class="canvasbox" style="max-width:420px"><canvas width="620" height="200"></canvas></div>`;
+  const cv=host.querySelector('canvas'),ctx=cv.getContext('2d');let strokes=[],cur=null,used=false;
+  function redraw(){ctx.clearRect(0,0,cv.width,cv.height);ctx.fillStyle='#fff';ctx.fillRect(0,0,cv.width,cv.height);ctx.strokeStyle='#0D1B2E';ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=2.4;for(const st of strokes){ctx.beginPath();st.forEach((pt,i)=>i?ctx.lineTo(pt[0],pt[1]):ctx.moveTo(pt[0],pt[1]));ctx.stroke()}}
+  redraw();
+  if(existing){const im=new Image();im.onload=()=>{ctx.drawImage(im,0,0,cv.width,cv.height)};im.src=existing;used=true}
+  const pos=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*cv.width/r.width,(e.clientY-r.top)*cv.height/r.height]};
+  cv.onpointerdown=e=>{cv.setPointerCapture(e.pointerId);cur=[pos(e)];strokes.push(cur);used=true;redraw()};
+  cv.onpointermove=e=>{if(cur){cur.push(pos(e));redraw()}};
+  cv.onpointerup=cv.onpointercancel=()=>{cur=null};
+  host.querySelector('[data-act=clear]').onclick=()=>{strokes=[];used=false;redraw()};
+  return{png:()=>used?cv.toDataURL('image/png'):'',empty:()=>!used}}
+
+function renderConsent(){const el=$('tab-consent');const p=P();p.consents=p.consents||{agreement:{},acupuncture:null};
+  el.innerHTML=`
+  <div class="sect"><span class="ltr">1</span><h2>PATIENT AGREEMENT</h2></div><hr class="goldrule">
+  <div class="card" id="agCard"></div>
+  <div class="sect"><span class="ltr">2</span><h2>MEDICAL ACUPUNCTURE CONSENT</h2></div><hr class="goldrule">
+  <div class="card" id="acCard"></div>`;
+  drawAgreement();drawAcuStatus()}
+
+function drawAgreement(){const p=P(),cn=p.intake.consent||{},ag=p.consents.agreement||{},c=$('agCard');
+  const stmts=AGREE.map((s,n)=>`<div class="chk"><input type="checkbox" ${cn['c'+(n+1)]?'checked':''} disabled><span><b class="kab">${s[0]}.</b> ${s[1]}</span></div>`).join('');
+  const photo=cn.photo==='Yes'?'Consented':(cn.photo==='No'?'Declined':'Not specified');
+  c.innerHTML=`<p class="hint">These statements were confirmed by the patient on their intake form. Have the patient sign on this device to complete the agreement in clinic.</p>
+   ${stmts}<div class="chk"><span><b class="kab">Clinical photography.</b> ${photo}</span></div>
+   ${ag.signPng?`<div class="note" style="margin-top:12px"><b class="kab">Signed in clinic.</b> ${esc(ag.signName||'')} on ${fmtD(ag.date)}${ag.by?', witnessed by '+esc(ag.by):''}.</div>
+     <div class="canvasbox" style="max-width:300px;margin-top:8px"><img src="${ag.signPng}" style="width:100%;display:block"></div>
+     <div style="margin-top:12px"><button class="btn sm ghost" onclick="signAgreement()">Re-sign</button> <button class="btn sm" onclick="exportConsent('agreement')">Export signed PDF</button></div>`
+   :`<div style="margin-top:14px"><button class="btn" onclick="signAgreement()">Sign agreement</button></div>`}`}
+
+function signAgreement(){const p=P(),c=$('agCard');const nm=(p.consents.agreement&&p.consents.agreement.signName)||patientName(p);
+  c.innerHTML=`<p class="hint">Please check the name, then sign in the box below.</p>
+   <div class="f"><label>Full name</label><input id="agName" value="${esc(nm)}"></div>
+   <div id="agPad" style="margin-top:8px"></div>
+   <div style="margin-top:12px"><button class="btn" onclick="saveAgreement()">Save signed agreement</button> <button class="btn ghost" onclick="drawAgreement()">Cancel</button></div>`;
+  window.__agPad=sigPad($('agPad'),(p.consents.agreement||{}).signPng)}
+
+function saveAgreement(){const p=P();const name=($('agName').value||'').trim();if(!name)return toast('Enter the full name');
+  const png=window.__agPad.png();if(!png)return toast('Please sign in the box');
+  p.consents=p.consents||{agreement:{},acupuncture:null};
+  p.consents.agreement={signName:name,signPng:png,date:today(),by:S.practitioner.name};touch();toast('Agreement signed');drawAgreement()}
+
+function drawAcuStatus(){const p=P(),ac=p.consents.acupuncture,c=$('acCard');
+  const yes=ac&&ac.answers?Object.values(ac.answers).filter(v=>v==='Yes').length:0;
+  c.innerHTML=`<p class="hint">Optional. Complete only when acupuncture is to be used.</p>
+   ${ac?`<div class="note" style="margin-top:10px"><b class="kab">Completed.</b> ${esc(ac.signName||'')} on ${fmtD(ac.date)}. ${yes} of 14 health questions answered Yes.</div>
+     <div style="margin-top:12px"><button class="btn sm ghost" onclick="openAcu()">Open / amend</button> <button class="btn sm" onclick="exportConsent('acupuncture')">Export signed PDF</button></div>`
+   :`<div style="margin-top:6px"><button class="btn" onclick="openAcu()">Medical acupuncture consent</button></div>`}`}
+
+function openAcu(){const p=P(),i=p.intake,c=$('acCard');const ac=p.consents.acupuncture||{answers:{}};
+  const nm=ac.signName||patientName(p);const dob=ac.dob||i.dob||'';const dt=ac.date||today();
+  const ben=ACU_BEN.map(b=>`<li>${b}</li>`).join('');const adv=ACU_ADV.map(a=>`<li>${a}</li>`).join('');
+  const qs=ACU_Q.map((q,n)=>`<div class="acq"><span>${q}</span><span class="yn"><label><input type="radio" name="q${n}" value="Yes" ${ac.answers&&ac.answers[n]==='Yes'?'checked':''}> Yes</label><label><input type="radio" name="q${n}" value="No" ${ac.answers&&ac.answers[n]==='No'?'checked':''}> No</label></span></div>`).join('');
+  c.innerHTML=`<div class="col2"><div class="f"><label>Patient name</label><input id="acName" value="${esc(nm)}"></div><div class="f"><label>Date of birth</label><input type="date" id="acDob" value="${dob}"></div></div>
+   <div class="f"><label>Date</label><input type="date" id="acDate" value="${dt}"></div>
+   <span class="acsub">Intended benefits of treatment</span><ul class="acul">${ben}</ul>
+   <span class="acsub">Possible adverse effects</span><p class="hint" style="margin-top:0">Known possible effects from research evidence; your therapist will discuss these and any enhanced risk.</p><ul class="acul">${adv}</ul>
+   <span class="acsub">Health screening</span><div class="acqs">${qs}</div>
+   <div class="f" style="margin-top:12px"><label>Further information</label><textarea id="acFurther">${esc(ac.further||'')}</textarea></div>
+   <div class="note" style="margin-top:6px">${ACU_STMT}</div>
+   <span class="acsub">Patient signature</span><div id="acPad" style="margin-top:4px"></div>
+   <div style="margin-top:12px"><button class="btn" onclick="saveAcu()">Save signed consent</button> <button class="btn ghost" onclick="drawAcuStatus()">Cancel</button></div>`;
+  window.__acPad=sigPad($('acPad'),ac.signPng)}
+
+function saveAcu(){const p=P();const name=($('acName').value||'').trim();if(!name)return toast('Enter the patient name');
+  const png=window.__acPad.png();if(!png)return toast('Please sign in the box');
+  const answers={};ACU_Q.forEach((q,n)=>{const r=document.querySelector('input[name=q'+n+']:checked');answers[n]=r?r.value:''});
+  p.consents=p.consents||{agreement:{},acupuncture:null};
+  p.consents.acupuncture={signName:name,dob:$('acDob').value,date:$('acDate').value||today(),further:$('acFurther').value,answers:answers,signPng:png,by:S.practitioner.name};
+  touch();toast('Acupuncture consent saved');drawAcuStatus()}
+
+function exportConsent(kind){const p=P();const rec=kind==='agreement'?(p.consents&&p.consents.agreement):(p.consents&&p.consents.acupuncture);
+  if(!rec||!rec.signPng)return toast('Nothing signed to export');
+  const name=esc(rec.signName||patientName(p));const dstr=fmtD(rec.date);let bodyHtml='';
+  if(kind==='agreement'){const cn=p.intake.consent||{};
+    bodyHtml=`<h2 class="ttl">Patient Agreement</h2>`+
+     AGREE.map((s,n)=>`<p class="stmt"><b>${s[0]}.</b> ${s[1]} <span class="tick">${cn['c'+(n+1)]?'\u2714 Confirmed':'Not confirmed'}</span></p>`).join('')+
+     `<p class="stmt"><b>Clinical photography.</b> ${cn.photo==='Yes'?'Consented':(cn.photo==='No'?'Declined':'Not specified')}</p>`;
+  }else{const a=rec.answers||{};
+    bodyHtml=`<h2 class="ttl">Medical Acupuncture Therapy Consent</h2>
+     <p class="stmt"><b>Patient:</b> ${name} &nbsp;&nbsp; <b>Date of birth:</b> ${rec.dob?fmtD(rec.dob):'\u2014'}</p>
+     <b class="sub">Intended benefits of treatment</b><ul>${ACU_BEN.map(b=>`<li>${b}</li>`).join('')}</ul>
+     <b class="sub">Possible adverse effects</b><ul>${ACU_ADV.map(x=>`<li>${x}</li>`).join('')}</ul>
+     <b class="sub">Health screening</b><table class="hq"><tr><th>Question</th><th>Yes</th><th>No</th></tr>${ACU_Q.map((q,n)=>`<tr><td>${q}</td><td class="c">${a[n]==='Yes'?'\u2714':''}</td><td class="c">${a[n]==='No'?'\u2714':''}</td></tr>`).join('')}</table>
+     ${rec.further?`<p class="stmt"><b>Further information:</b> ${esc(rec.further)}</p>`:''}
+     <p class="stmt">${ACU_STMT}</p>`}
+  const html=`<html><head><meta charset="utf-8"><title>SPORTS CLINICAL Consent \u2014 ${name}</title><style>
+   @page{size:A4;margin:15mm}*{margin:0;box-sizing:border-box}
+   body{font-family:'CG2',sans-serif;color:#2C2C2E;font-size:10.5pt;line-height:1.5;padding-bottom:14mm}
+   .band{background:#0D1B2E;color:#fff;padding:16px 0 18px;border-bottom:3px solid #D4AF37;text-align:center}
+   .band .lg{height:50px;margin:2px auto 8px;display:block}
+   .band .wm{font-family:'Kabel2';font-size:19pt;letter-spacing:3px;display:block}
+   .band .xurl{color:#C7CDD6;font-size:9pt;display:block;margin-top:4px}
+   .ttl{font-family:'Kabel2';color:#0D1B2E;font-size:15pt;margin:18px 0 12px}
+   .sub{font-family:'Kabel2';color:#0D1B2E;display:block;margin:12px 0 4px}
+   ul{margin:0 0 6px 20px}li{margin:2px 0}
+   .stmt{margin:7px 0}.tick{color:#0D1B2E;font-family:'Kabel2';margin-left:6px}
+   table.hq{width:100%;border-collapse:collapse;margin:4px 0 8px}
+   table.hq th{background:#0D1B2E;color:#fff;font-family:'Kabel2';font-weight:normal;text-align:left;padding:5px 8px;font-size:9.5pt}
+   table.hq th:nth-child(2),table.hq th:last-child{text-align:center;width:46px}
+   table.hq td{border-bottom:.5pt solid #E4E4E0;padding:5px 8px}.hq td.c{text-align:center;font-family:'Kabel2';color:#0D1B2E}
+   .sign{margin-top:20px}.sign .lbl{font-family:'Kabel2';color:#0D1B2E}
+   .sigimg{border:1px solid #E4E4E0;border-radius:8px;max-width:300px;margin-top:6px;display:block}
+   .who{color:#6B7077;font-size:9.5pt;margin-top:6px}
+   .gold{color:#D4AF37;font-family:'CG2';letter-spacing:1.5px;font-size:9pt;text-align:center;position:fixed;left:0;right:0;bottom:6mm}
+  </style></head><body>
+   <div class="band"><img class="lg" src="${ASSETS.logo}"><div class="wm" id="xwm">SPORTS CLINICAL</div><div class="xurl" id="xurl">www.sportsclinical.co.uk</div></div>
+   ${bodyHtml}
+   <div class="sign"><span class="lbl">Patient signature</span><img class="sigimg" src="${rec.signPng}">
+   <div class="who"><b>${name}</b> &nbsp; Date: ${dstr} &nbsp; Practitioner: ${esc(rec.by||S.practitioner.name)}</div></div>
+   <div class="gold">RESTORE &nbsp;&bull;&nbsp; REGULATE &nbsp;&bull;&nbsp; OPTIMISE</div>
+   <script>
+    const css=document.createElement('style');css.textContent=window.opener?window.opener.__fontCSS:'';document.head.appendChild(css);
+    setTimeout(function(){window.print()},600);
+   <\/script></body></html>`;
+  window.__fontCSS=`@font-face{font-family:'Kabel2';src:url(${KABEL_URL}) format('woff2')}@font-face{font-family:'CG2';src:url(${CG_URL}) format('woff2')}`;
+  const w=window.open('','_blank');if(!w)return toast('Allow pop-ups to export the PDF');w.document.write(html);w.document.close()}
+
+
 function makeInvoice(){const p=P(),i=p.intake,c=S.invoiceCfg||{};
   const rows=[...document.querySelectorAll('.invrow')].filter(r=>r.querySelector('.inv-pick').checked)
     .map(r=>({date:r.dataset.d,fee:parseFloat(r.querySelector('.inv-fee').value)||0}));
@@ -1151,10 +1291,10 @@ addEventListener('DOMContentLoaded',async function(){hydrateAssets();fitUrls();c
 z-index:40;font-family:'CG',sans-serif;font-size:11px;color:#6B7077;background:rgba(244,244,242,.9);
 border:1px solid #E6E6E2;border-radius:8px;padding:3px 8px;pointer-events:none;letter-spacing:.3px}
 </style>
-<div id="scVerMark">v1.8</div>
+<div id="scVerMark">v1.9</div>
 <script>
 (function(){
-  var APP_VERSION='1.8';
+  var APP_VERSION='1.9';
   function rel(last){var d=Math.floor((Date.now()-last)/86400000);
     return d<=0?'backed up today':d===1?'backed up yesterday':('backed up '+d+' days ago');}
   function scMark(){var e=document.getElementById('scVerMark');if(!e)return;
